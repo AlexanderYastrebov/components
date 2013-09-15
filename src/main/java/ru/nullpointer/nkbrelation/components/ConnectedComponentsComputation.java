@@ -18,6 +18,7 @@
 package ru.nullpointer.nkbrelation.components;
 
 import java.io.IOException;
+import org.apache.giraph.conf.LongConfOption;
 import org.apache.giraph.edge.Edge;
 import org.apache.giraph.graph.BasicComputation;
 import org.apache.giraph.graph.Vertex;
@@ -46,6 +47,10 @@ public class ConnectedComponentsComputation extends BasicComputation<Text, Text,
 
     private Logger logger = LoggerFactory.getLogger(ConnectedComponentsComputation.class);
     //
+    public static final LongConfOption MAX_SIZE = new LongConfOption(
+            "ConnectedComponentsComputation.maxSize",
+            Long.MAX_VALUE,
+            "Maximum connected components size");
 
     /**
      * Propagates the smallest vertex id to all neighbors. Will always choose to
@@ -57,6 +62,11 @@ public class ConnectedComponentsComputation extends BasicComputation<Text, Text,
      */
     @Override
     public void compute(Vertex<Text, Text, NullWritable> vertex, Iterable<Text> messages) throws IOException {
+        if (getSuperstep() == MAX_SIZE.get(getConf())) {
+            vertex.voteToHalt();
+            return;
+        }
+
         if (getSuperstep() == 0) {
             doFirstStep(vertex);
         } else {
