@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 import fileinput
 import json
+import codecs
+import sys
 
+UTF8Writer = codecs.getwriter('utf8')
+sys.stdout = UTF8Writer(sys.stdout)
 
 def main():
 
@@ -15,3 +19,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
