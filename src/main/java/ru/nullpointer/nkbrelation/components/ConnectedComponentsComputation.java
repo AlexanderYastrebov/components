@@ -23,6 +23,8 @@ import org.apache.giraph.graph.BasicComputation;
 import org.apache.giraph.graph.Vertex;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Implementation of the HCC algorithm that identifies connected components and
@@ -42,6 +44,9 @@ import org.apache.hadoop.io.Text;
  */
 public class ConnectedComponentsComputation extends BasicComputation<Text, Text, NullWritable, Text> {
 
+    private Logger logger = LoggerFactory.getLogger(ConnectedComponentsComputation.class);
+    //
+
     /**
      * Propagates the smallest vertex id to all neighbors. Will always choose to
      * halt and only reactivate if a smaller id has been sent to it.
@@ -60,25 +65,22 @@ public class ConnectedComponentsComputation extends BasicComputation<Text, Text,
         vertex.voteToHalt();
     }
 
-    // First superstep is special, because we can simply look at the neighbors
     private void doFirstStep(Vertex<Text, Text, NullWritable> vertex) {
+        // First superstep is special, because we can simply look at the neighbors
         // On first step value is not set, so using id
         Text currentComponent = vertex.getId();
 
         for (Edge<Text, NullWritable> edge : vertex.getEdges()) {
             Text neighbor = edge.getTargetVertexId();
             if (neighbor.compareTo(currentComponent) < 0) {
-                currentComponent = neighbor;
+                currentComponent = new Text(neighbor); // do clone since neighbor is mutable
             }
         }
-        // Only need to send value if it is not the own id
-        if (!currentComponent.equals(vertex.getValue())) {
-            vertex.setValue(new Text(currentComponent));
-            for (Edge<Text, NullWritable> edge : vertex.getEdges()) {
-                Text neighbor = edge.getTargetVertexId();
-                if (neighbor.compareTo(currentComponent) > 0) {
-                    sendMessage(neighbor, vertex.getValue());
-                }
+        vertex.setValue(currentComponent);
+        for (Edge<Text, NullWritable> edge : vertex.getEdges()) {
+            Text neighbor = edge.getTargetVertexId();
+            if (neighbor.compareTo(currentComponent) > 0) {
+                sendMessage(neighbor, currentComponent);
             }
         }
     }
@@ -90,14 +92,23 @@ public class ConnectedComponentsComputation extends BasicComputation<Text, Text,
         for (Text message : messages) {
             Text candidateComponent = message;
             if (candidateComponent.compareTo(currentComponent) < 0) {
-                currentComponent = candidateComponent;
+                currentComponent = new Text(candidateComponent); // do clone since candidateComponent is mutable
                 changed = true;
             }
         }
         // propagate new component id to the neighbors
         if (changed) {
-            vertex.setValue(new Text(currentComponent));
-            sendMessageToAllEdges(vertex, vertex.getValue());
+            vertex.setValue(currentComponent);
+            sendMessageToAllEdges(vertex, currentComponent);
         }
+    }
+
+    private String getEdges(Vertex<Text, Text, NullWritable> vertex) {
+        StringBuilder sb = new StringBuilder();
+        for (Edge<Text, NullWritable> edge : vertex.getEdges()) {
+            sb.append(sb.length() > 0 ? ", " : "");
+            sb.append(edge.getTargetVertexId());
+        }
+        return sb.toString();
     }
 }
